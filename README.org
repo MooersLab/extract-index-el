@@ -1,0 +1,168 @@
+#+TITLE: index-extract
+#+AUTHOR: Blaine Mooers
+#+OPTIONS: toc:nil num:nil
+#+LaTeX_HEADER: \usepackage[margin=0.5in]{geometry}
+
+Extract passages from LaTeX files that are flagged by =\index= keys.
+
+* What it does
+
+=index-extract= pulls passages out of LaTeX files when those passages are
+tagged with =\index{...}= keys. It was built for a daily log in which there
+is one document file per day, the files sit in monthly subfolders, and each
+passage looks like this:
+
+#+begin_src latex
+\subsubsection{Correspondence with my brother}
+\index{brother}
+\index{letter}
+
+We traded a couple of emails about the reunion.
+I still owe him a real reply.
+
+\subsubsection{Next topic}
+...
+#+end_src
+
+The main use is to collect everything you wrote about a topic across a
+stretch of days. For example you can gather the brother-related passages from
+the past week into the weekly letter you write to him. The same idea serves a
+manuscript, a grant, a book, or a talk, because you search a different key.
+
+* Installation
+
+Put =index-extract.el= on your =load-path= and require it.
+
+#+begin_src emacs-lisp
+(add-to-list 'load-path "/path/to/extract-index-el")
+(require 'index-extract)
+
+(setq index-extract-default-directory "~/2026words/Content/"
+      index-extract-root-directory    "~/2026words/Content/"
+      index-extract-default-days      7)
+#+end_src
+
+The repository also ships an Info manual. After =make info= you can install
+=index-extract.info= into your Info tree, or read it in place with =C-u C-h i=.
+
+* Commands
+
+#+CAPTION: The interactive entry points of index-extract.
+#+ATTR_LATEX: :booktabs t :center t
+| Command                       | What it does                                                        |
+|-------------------------------+---------------------------------------------------------------------|
+| =index-extract=               | Pick files and keys, then collect the passages into a buffer.       |
+| =index-extract-last-days=     | Scan the dated files from the last N days, default seven.           |
+| =index-extract-range=         | Scan the dated files whose filename date is in an explicit range.   |
+| =index-extract-to-org=        | Pick files and keys, then append the passages to an Org subtree.    |
+| =index-extract-again-keys=    | Run again with the same files but new keys.                         |
+| =index-extract-again-files=   | Run again with the same keys but a new file selection.              |
+
+=index-extract-last-days= and =index-extract-range= write to the results
+buffer by default. Give either one a prefix argument (=C-u=) to write the
+passages to an Org file instead.
+
+* Filename dates
+
+The date commands read the date out of each file's name. Two styles are
+recognized out of the box.
+
+#+CAPTION: Recognized filename date styles.
+#+ATTR_LATEX: :booktabs t :center t
+| Style               | Example              | Variable                           |
+|---------------------+----------------------+------------------------------------|
+| ISO                 | =2026-09-26.tex=     | =index-extract-date-regexp=        |
+| DayMonthNameYear    | =26September2026.tex= | =index-extract-date-named-regexp=  |
+
+Full month names and the common three-letter abbreviations both work, and the
+month name is matched without regard to case. If your names follow some other
+scheme, set =index-extract-date-named-regexp= so that its group one is the
+day, group two the month name, and group three the year, or set
+=index-extract-date-regexp= to a numeric pattern whose groups are year, month,
+and day.
+
+* The results buffer
+
+The passages land in the =*index-extract*= buffer, each under a LaTeX comment
+line that records the source file, the line number, the matched keys, and the
+section heading. These key bindings are active there.
+
+#+CAPTION: Key bindings in the results buffer.
+#+ATTR_LATEX: :booktabs t :center t
+| Key       | Action                                                        |
+|-----------+---------------------------------------------------------------|
+| =C-c C-s= | Save the buffer to a file.                                    |
+| =C-c C-w= | Copy just the passage text, without the label lines.          |
+| =C-c C-o= | Write these results to an Org file as a subtree.              |
+| =C-c C-k= | Run again with the same files but new keys.                   |
+| =C-c C-f= | Run again with the same keys but a new file selection.        |
+
+* What counts as a passage
+
+A passage is the text that follows a matched =\index= line, down to the next
+boundary. The boundary is the next =\index=, the next sectioning command, the
+start of an environment, =\end{document}=, or a =% TODO= comment line. The
+environment boundary keeps a trailing TODO itemize out of the final passage.
+
+The log stacks several =\index= keys under one heading and then the prose, so
+by default the package skips the rest of that stacked run. Because of that,
+matching any of the stacked keys returns the prose of the whole passage. Set
+=index-extract-skip-adjacent-index= to =nil= when you want the strictly
+literal behaviour of copying from the matched =\index= down to the very next
+=\index=.
+
+* Customization
+
+#+CAPTION: The variables you are most likely to set.
+#+ATTR_LATEX: :booktabs t :center t
+| Variable                           | Meaning                                                      |
+|------------------------------------+--------------------------------------------------------------|
+| =index-extract-default-directory=  | Where the file prompts start.                                |
+| =index-extract-root-directory=     | Root the date commands search recursively.                   |
+| =index-extract-default-days=       | Default window for =index-extract-last-days=.                |
+| =index-extract-file-glob=          | Wildcard for adding a whole directory, default =*.tex=.      |
+| =index-extract-date-regexp=        | Regexp matching =YYYY-MM-DD= in a file name.                 |
+| =index-extract-match-style=        | =exact=, =substring=, or =regexp=.                           |
+| =index-extract-case-fold=          | If non-nil, ignore case when matching keys.                  |
+| =index-extract-skip-adjacent-index= | Skip the stacked =\index= lines after the matched one.      |
+| =index-extract-sort-files=         | Scan in sorted order, so dated names come out chronological. |
+
+Run =M-x customize-group RET index-extract RET= to see the full set with
+documentation.
+
+* The weekly letter workflow
+
+This is the workflow the package was written for. Each day you add a
+=\subsubsection= to that day's file, stack the relevant =\index= keys under
+it, and write the prose. On a day you mention your brother, you tag the
+passage with =\index{brother}=.
+
+At the end of the week you run =M-x index-extract-last-days=, accept the
+default of seven days, and give the key =brother=. The package searches the
+log root, keeps the dated files from the last week even when they fall in two
+monthly subfolders, pulls every brother passage, and collects them in date
+order. Press =C-c C-w= to copy the passage text, or run the command with a
+prefix argument to drop the passages into an Org file as a subtree you can
+edit into the letter.
+
+* Development
+
+#+CAPTION: Make targets.
+#+ATTR_LATEX: :booktabs t :center t
+| Target          | What it does                                               |
+|-----------------+------------------------------------------------------------|
+| =make compile=  | Byte-compile, treating every warning as an error.          |
+| =make test=     | Run the ERT test suite in batch.                           |
+| =make info=     | Build the Info manual from the Texinfo source.             |
+| =make checkdoc= | Run checkdoc on the source.                                |
+| =make all=      | Compile, test, and build the manual.                       |
+| =make clean=    | Remove the build products.                                 |
+
+The tests live in =test/index-extract-tests.el= and read two fixture files
+under =test/fixtures/=. The date tests bind the clock to a fixed day, so they
+stay deterministic.
+
+* License
+
+index-extract is free software, released under the GNU General Public License
+version 3 or later. See the file [[file:LICENSE][LICENSE]] for the full text.
